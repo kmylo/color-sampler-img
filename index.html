@@ -1,0 +1,1004 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Color Sampler</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: system-ui, -apple-system, sans-serif;
+        background: #f5f5f3;
+        color: #1a1a1a;
+        padding: 1rem;
+        min-height: 100vh;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        body {
+          background: #1a1a1a;
+          color: #f0f0ee;
+        }
+        button {
+          background: #2a2a28;
+          color: #f0f0ee;
+          border-color: #444;
+        }
+        button:hover {
+          background: #333330;
+        }
+        button.primary {
+          background: #f0f0ee;
+          color: #1a1a1a;
+        }
+        .sample-row {
+          background: #2a2a28;
+          border-color: #3a3a38;
+        }
+        .canvas-wrap {
+          background: #242422;
+          border-color: #3a3a38;
+        }
+        .brightness-bar-wrap {
+          background: #3a3a38;
+        }
+        .section-label {
+          color: #888;
+        }
+        .hint {
+          color: #888;
+        }
+        .sample-hex {
+          color: #f0f0ee;
+        }
+        .sample-meta {
+          color: #aaa;
+        }
+        .auto-swatch .lbl {
+          color: #aaa;
+        }
+        .mode-badge {
+          background: #1a3a5c;
+          color: #7ab8f5;
+        }
+      }
+
+      #root {
+        max-width: 740px;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      h1 {
+        font-size: 17px;
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: inherit;
+      }
+
+      .toolbar {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+
+      button {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 13px;
+        font-family: inherit;
+        padding: 7px 14px;
+        border-radius: 8px;
+        border: 0.5px solid #ccc;
+        background: #fff;
+        color: #1a1a1a;
+        cursor: pointer;
+        transition: background 0.15s;
+      }
+      button:hover {
+        background: #f0f0ee;
+      }
+      button:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+      button.primary {
+        background: #1a1a1a;
+        color: #fff;
+        border-color: transparent;
+      }
+      button.primary:hover {
+        opacity: 0.85;
+      }
+      button.danger {
+        border-color: #e2a0a0;
+        color: #a32d2d;
+      }
+      button.danger:hover {
+        background: #fcebeb;
+      }
+
+      .canvas-wrap {
+        position: relative;
+        border-radius: 12px;
+        border: 0.5px solid #ddd;
+        overflow: hidden;
+        background: #ebebea;
+        min-height: 260px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      #mainCanvas {
+        display: block;
+        max-width: 100%;
+        cursor: crosshair;
+        touch-action: none;
+      }
+
+      #placeholder {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        color: #999;
+        font-size: 14px;
+        padding: 3rem;
+        text-align: center;
+      }
+
+      #placeholder svg {
+        opacity: 0.4;
+      }
+
+      #magnifier {
+        position: absolute;
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        border: 2px solid rgba(0, 0, 0, 0.3);
+        pointer-events: none;
+        overflow: hidden;
+        display: none;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+        z-index: 10;
+      }
+
+      .crosshair {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 12px;
+        height: 12px;
+        pointer-events: none;
+        z-index: 11;
+      }
+      .crosshair::before,
+      .crosshair::after {
+        content: '';
+        position: absolute;
+        background: rgba(255, 255, 255, 0.9);
+      }
+      .crosshair::before {
+        width: 1px;
+        height: 100%;
+        left: 50%;
+      }
+      .crosshair::after {
+        height: 1px;
+        width: 100%;
+        top: 50%;
+      }
+
+      .section-label {
+        font-size: 11px;
+        font-weight: 500;
+        color: #999;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        margin-bottom: 6px;
+      }
+
+      .samples-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .sample-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 10px;
+        border-radius: 8px;
+        border: 0.5px solid #e0e0de;
+        background: #fff;
+        animation: fadeIn 0.2s ease;
+      }
+
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(4px);
+        }
+        to {
+          opacity: 1;
+        }
+      }
+
+      .swatch {
+        width: 32px;
+        height: 32px;
+        border-radius: 6px;
+        flex-shrink: 0;
+        border: 0.5px solid rgba(0, 0, 0, 0.1);
+        cursor: pointer;
+        title: 'Click to copy HEX';
+      }
+
+      .sample-info {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 0;
+      }
+
+      .sample-hex {
+        font-family: 'Courier New', monospace;
+        font-size: 13px;
+        font-weight: 600;
+        color: #1a1a1a;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+      }
+      .sample-hex:hover {
+        text-decoration: underline;
+      }
+
+      .copy-toast {
+        font-size: 10px;
+        color: #3a8a3a;
+        font-family: inherit;
+        font-weight: normal;
+        opacity: 0;
+        transition: opacity 0.2s;
+      }
+      .copy-toast.show {
+        opacity: 1;
+      }
+
+      .sample-meta {
+        font-size: 11px;
+        color: #888;
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .brightness-bar-wrap {
+        width: 80px;
+        height: 6px;
+        border-radius: 3px;
+        background: #e0e0de;
+        overflow: hidden;
+        flex-shrink: 0;
+      }
+      .brightness-bar {
+        height: 100%;
+        border-radius: 3px;
+        transition: width 0.2s;
+      }
+
+      .remove-btn {
+        padding: 4px 6px;
+        border: none;
+        background: transparent;
+        color: #bbb;
+        cursor: pointer;
+        border-radius: 4px;
+        font-size: 16px;
+        line-height: 1;
+        flex-shrink: 0;
+      }
+      .remove-btn:hover {
+        background: #fcebeb;
+        color: #a32d2d;
+      }
+
+      .auto-palette {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .auto-swatch {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        cursor: pointer;
+      }
+      .auto-swatch .block {
+        width: 52px;
+        height: 52px;
+        border-radius: 10px;
+        border: 0.5px solid rgba(0, 0, 0, 0.08);
+        transition: transform 0.15s;
+      }
+      .auto-swatch:hover .block {
+        transform: scale(1.06);
+      }
+      .auto-swatch .lbl {
+        font-size: 10px;
+        font-family: 'Courier New', monospace;
+        color: #888;
+        text-align: center;
+      }
+
+      .hint {
+        font-size: 12px;
+        color: #aaa;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .pin-dot {
+        position: absolute;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        border: 2px solid #fff;
+        pointer-events: none;
+        transform: translate(-50%, -50%);
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+        z-index: 5;
+      }
+
+      #videoEl {
+        display: none;
+      }
+
+      .mode-badge {
+        font-size: 11px;
+        padding: 3px 8px;
+        border-radius: 20px;
+        background: #e6f1fb;
+        color: #185fa5;
+        font-weight: 500;
+      }
+
+      .freeze-btn {
+        border-color: #185fa5;
+        color: #185fa5;
+      }
+      .freeze-btn:hover {
+        background: #e6f1fb;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root">
+      <h1>
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M12 19l-3-3 6.5-6.5a2.121 2.121 0 013 3L12 19z" />
+          <path d="M5 21l3-3" />
+          <path d="M9.5 5.5L11 4a2.121 2.121 0 013 3L8.5 12.5" />
+        </svg>
+        Color Sampler
+      </h1>
+
+      <div class="toolbar">
+        <button class="primary" id="btnCamera">
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path
+              d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"
+            />
+            <circle cx="12" cy="13" r="4" />
+          </svg>
+          Open camera
+        </button>
+        <button id="btnUpload">
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+            <polyline points="17 8 12 3 7 8" />
+            <line x1="12" y1="3" x2="12" y2="15" />
+          </svg>
+          Upload image
+        </button>
+        <input
+          type="file"
+          id="fileInput"
+          accept="image/*"
+          style="display: none"
+        />
+        <button id="btnFreeze" style="display: none" class="freeze-btn">
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <rect x="2" y="2" width="20" height="20" rx="2" />
+            <line x1="12" y1="8" x2="12" y2="16" />
+            <line x1="8" y1="12" x2="16" y2="12" />
+          </svg>
+          Freeze frame
+        </button>
+        <button id="btnAuto" disabled>
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M15 4V2" />
+            <path d="M15 16v-2" />
+            <path d="M8 9H2" />
+            <path d="M20 9h-5" />
+            <path d="M17.8 11.8L19 13" />
+            <path d="M15 9h0" />
+            <path d="M17.8 6.2L19 5" />
+            <path d="M3 3l18 18" />
+          </svg>
+          Auto-detect 5 shades
+        </button>
+        <button id="btnClear" class="danger" disabled>
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <polyline points="3 6 5 6 21 6" />
+            <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
+            <path d="M10 11v6" />
+            <path d="M14 11v6" />
+            <path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2" />
+          </svg>
+          Clear
+        </button>
+        <span id="modeBadge" style="display: none" class="mode-badge"></span>
+      </div>
+
+      <div class="canvas-wrap" id="canvasWrap">
+        <div id="placeholder">
+          <svg
+            width="40"
+            height="40"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M12 19l-3-3 6.5-6.5a2.121 2.121 0 013 3L12 19z" />
+            <path d="M5 21l3-3" />
+            <path d="M9.5 5.5L11 4a2.121 2.121 0 013 3L8.5 12.5" />
+          </svg>
+          <span
+            >Open your camera or upload an image<br />then click to sample
+            colors</span
+          >
+        </div>
+        <canvas id="mainCanvas" style="display: none"></canvas>
+        <div id="magnifier">
+          <canvas id="magCanvas" width="160" height="160"></canvas>
+          <div class="crosshair"></div>
+        </div>
+        <video id="videoEl" autoplay playsinline muted></video>
+      </div>
+
+      <div id="samplesSection" style="display: none">
+        <div class="section-label">manual samples — click hex to copy</div>
+        <div class="samples-grid" id="samplesGrid"></div>
+      </div>
+
+      <div id="autoSection" style="display: none">
+        <div class="section-label">
+          auto-detected shades — click swatch to copy
+        </div>
+        <div class="auto-palette" id="autoPalette"></div>
+      </div>
+
+      <div class="hint">
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <circle cx="12" cy="12" r="10" />
+          <line x1="12" y1="8" x2="12" y2="12" />
+          <line x1="12" y1="16" x2="12.01" y2="16" />
+        </svg>
+        Click on the image to drop a sample point. Brightness = perceptual
+        luminance (0–255).
+      </div>
+    </div>
+
+    <script>
+      const btnCamera = document.getElementById('btnCamera');
+      const btnUpload = document.getElementById('btnUpload');
+      const btnFreeze = document.getElementById('btnFreeze');
+      const fileInput = document.getElementById('fileInput');
+      const btnAuto = document.getElementById('btnAuto');
+      const btnClear = document.getElementById('btnClear');
+      const canvasWrap = document.getElementById('canvasWrap');
+      const placeholder = document.getElementById('placeholder');
+      const mainCanvas = document.getElementById('mainCanvas');
+      const ctx = mainCanvas.getContext('2d');
+      const magCanvas = document.getElementById('magCanvas');
+      const magCtx = magCanvas.getContext('2d');
+      const magnifier = document.getElementById('magnifier');
+      const videoEl = document.getElementById('videoEl');
+      const samplesSection = document.getElementById('samplesSection');
+      const samplesGrid = document.getElementById('samplesGrid');
+      const autoSection = document.getElementById('autoSection');
+      const autoPalette = document.getElementById('autoPalette');
+      const modeBadge = document.getElementById('modeBadge');
+
+      let imageLoaded = false;
+      let samples = [];
+      let stream = null;
+      let animFrame = null;
+      let cameraMode = false;
+      let frozen = false;
+      let pins = [];
+
+      function rgbToHex(r, g, b) {
+        return (
+          '#' +
+          [r, g, b]
+            .map((v) => v.toString(16).padStart(2, '0'))
+            .join('')
+            .toUpperCase()
+        );
+      }
+      function perceivedBrightness(r, g, b) {
+        return Math.round(0.299 * r + 0.587 * g + 0.114 * b);
+      }
+      function rgbToHsl(r, g, b) {
+        r /= 255;
+        g /= 255;
+        b /= 255;
+        const max = Math.max(r, g, b),
+          min = Math.min(r, g, b);
+        let h,
+          s,
+          l = (max + min) / 2;
+        if (max === min) {
+          h = s = 0;
+        } else {
+          const d = max - min;
+          s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+          switch (max) {
+            case r:
+              h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+              break;
+            case g:
+              h = ((b - r) / d + 2) / 6;
+              break;
+            default:
+              h = ((r - g) / d + 4) / 6;
+          }
+        }
+        return [Math.round(h * 360), Math.round(s * 100), Math.round(l * 100)];
+      }
+      function shadeName(brightness) {
+        if (brightness < 51) return 'very dark';
+        if (brightness < 102) return 'dark';
+        if (brightness < 153) return 'midtone';
+        if (brightness < 204) return 'light';
+        return 'very light';
+      }
+
+      async function copyToClipboard(text, toastEl) {
+        try {
+          await navigator.clipboard.writeText(text);
+          if (toastEl) {
+            toastEl.classList.add('show');
+            setTimeout(() => toastEl.classList.remove('show'), 1500);
+          }
+        } catch (e) {
+          prompt('Copy this:', text);
+        }
+      }
+
+      function showImage(img) {
+        const maxW = canvasWrap.clientWidth - 2;
+        const maxH = Math.max(300, Math.min(500, window.innerHeight * 0.55));
+        const scale = Math.min(maxW / img.width, maxH / img.height, 1);
+        mainCanvas.width = Math.round(img.width * scale);
+        mainCanvas.height = Math.round(img.height * scale);
+        ctx.drawImage(img, 0, 0, mainCanvas.width, mainCanvas.height);
+        placeholder.style.display = 'none';
+        mainCanvas.style.display = 'block';
+        imageLoaded = true;
+        btnAuto.disabled = false;
+        btnClear.disabled = false;
+      }
+
+      function drawFrame() {
+        if (!cameraMode || frozen) return;
+        ctx.drawImage(videoEl, 0, 0, mainCanvas.width, mainCanvas.height);
+        animFrame = requestAnimationFrame(drawFrame);
+      }
+
+      btnCamera.addEventListener('click', async () => {
+        if (cameraMode) {
+          stopCamera();
+          return;
+        }
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              facingMode: 'environment',
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+            },
+            audio: false,
+          });
+          videoEl.srcObject = stream;
+          await new Promise((r) => {
+            videoEl.onloadedmetadata = r;
+          });
+          videoEl.play();
+          const maxW = canvasWrap.clientWidth - 2;
+          const maxH = 420;
+          const scale = Math.min(
+            maxW / videoEl.videoWidth,
+            maxH / videoEl.videoHeight,
+            1
+          );
+          mainCanvas.width = Math.round(videoEl.videoWidth * scale);
+          mainCanvas.height = Math.round(videoEl.videoHeight * scale);
+          placeholder.style.display = 'none';
+          mainCanvas.style.display = 'block';
+          imageLoaded = true;
+          cameraMode = true;
+          frozen = false;
+          btnCamera.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="1" y1="1" x2="23" y2="23"/><path d="M21 21H3a2 2 0 01-2-2V8a2 2 0 012-2h3m3-3h6l2 3h2a2 2 0 012 2v9.34"/></svg> Stop camera`;
+          modeBadge.textContent = 'Live camera';
+          modeBadge.style.display = 'inline-block';
+          btnFreeze.style.display = 'inline-flex';
+          btnAuto.disabled = false;
+          btnClear.disabled = false;
+          drawFrame();
+        } catch (e) {
+          alert(
+            'Camera access denied or unavailable. Try uploading an image instead.'
+          );
+        }
+      });
+
+      btnFreeze.addEventListener('click', () => {
+        if (!cameraMode) return;
+        frozen = !frozen;
+        if (frozen) {
+          cancelAnimationFrame(animFrame);
+          ctx.drawImage(videoEl, 0, 0, mainCanvas.width, mainCanvas.height);
+          btnFreeze.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg> Resume`;
+          modeBadge.textContent = 'Frozen frame';
+        } else {
+          btnFreeze.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="2"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg> Freeze frame`;
+          modeBadge.textContent = 'Live camera';
+          drawFrame();
+        }
+      });
+
+      function stopCamera() {
+        if (stream) {
+          stream.getTracks().forEach((t) => t.stop());
+          stream = null;
+        }
+        cameraMode = false;
+        frozen = false;
+        cancelAnimationFrame(animFrame);
+        btnCamera.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg> Open camera`;
+        modeBadge.style.display = 'none';
+        btnFreeze.style.display = 'none';
+      }
+
+      btnUpload.addEventListener('click', () => fileInput.click());
+      fileInput.addEventListener('change', (e) => {
+        const f = e.target.files[0];
+        if (!f) return;
+        stopCamera();
+        const url = URL.createObjectURL(f);
+        const img = new Image();
+        img.onload = () => {
+          showImage(img);
+          clearPins();
+        };
+        img.src = url;
+        fileInput.value = '';
+      });
+
+      function clearPins() {
+        pins.forEach((p) => p.remove());
+        pins = [];
+      }
+
+      mainCanvas.addEventListener('mousemove', (e) => {
+        if (!imageLoaded) return;
+        const rect = mainCanvas.getBoundingClientRect();
+        const x = Math.round(e.clientX - rect.left);
+        const y = Math.round(e.clientY - rect.top);
+        if (x < 0 || y < 0 || x >= mainCanvas.width || y >= mainCanvas.height) {
+          magnifier.style.display = 'none';
+          return;
+        }
+        const zoom = 4,
+          magR = 40;
+        magCtx.clearRect(0, 0, 160, 160);
+        magCtx.save();
+        magCtx.scale(zoom, zoom);
+        magCtx.drawImage(
+          mainCanvas,
+          x - magR / zoom,
+          y - magR / zoom,
+          (magR * 2) / zoom,
+          (magR * 2) / zoom,
+          0,
+          0,
+          magR * 2,
+          magR * 2
+        );
+        magCtx.restore();
+        const cw = canvasWrap.clientWidth;
+        let mx = x + 20;
+        if (mx + 80 > cw - 4) mx = x - 100;
+        let my = y - 40;
+        if (my < 4) my = y + 20;
+        magnifier.style.left = mx + 'px';
+        magnifier.style.top = my + 'px';
+        magnifier.style.display = 'block';
+      });
+
+      mainCanvas.addEventListener('mouseleave', () => {
+        magnifier.style.display = 'none';
+      });
+
+      mainCanvas.addEventListener('click', (e) => {
+        if (!imageLoaded) return;
+        if (cameraMode && !frozen)
+          ctx.drawImage(videoEl, 0, 0, mainCanvas.width, mainCanvas.height);
+        const rect = mainCanvas.getBoundingClientRect();
+        const x = Math.round(e.clientX - rect.left);
+        const y = Math.round(e.clientY - rect.top);
+        const data = ctx.getImageData(x, y, 1, 1).data;
+        addSample(data[0], data[1], data[2], x, y);
+      });
+
+      mainCanvas.addEventListener(
+        'touchstart',
+        (e) => {
+          if (!imageLoaded) return;
+          e.preventDefault();
+          if (cameraMode && !frozen)
+            ctx.drawImage(videoEl, 0, 0, mainCanvas.width, mainCanvas.height);
+          const rect = mainCanvas.getBoundingClientRect();
+          const touch = e.touches[0];
+          const x = Math.round(touch.clientX - rect.left);
+          const y = Math.round(touch.clientY - rect.top);
+          const data = ctx.getImageData(x, y, 1, 1).data;
+          addSample(data[0], data[1], data[2], x, y);
+        },
+        { passive: false }
+      );
+
+      function addSample(r, g, b, canvasX, canvasY) {
+        const hex = rgbToHex(r, g, b);
+        const brightness = perceivedBrightness(r, g, b);
+        const [h, s, l] = rgbToHsl(r, g, b);
+        const id = Date.now();
+        samples.push({ id, r, g, b, hex, brightness, h, s, l });
+
+        const pin = document.createElement('div');
+        pin.className = 'pin-dot';
+        pin.style.left = canvasX + 'px';
+        pin.style.top = canvasY + 'px';
+        pin.style.background = hex;
+        pin.dataset.id = id;
+        canvasWrap.appendChild(pin);
+        pins.push(pin);
+
+        renderSamples();
+      }
+
+      function renderSamples() {
+        if (samples.length === 0) {
+          samplesSection.style.display = 'none';
+          return;
+        }
+        samplesSection.style.display = 'block';
+        samplesGrid.innerHTML = '';
+
+        samples.forEach((s) => {
+          const row = document.createElement('div');
+          row.className = 'sample-row';
+          const bright = s.brightness;
+          const toastId = 'toast-' + s.id;
+          row.innerHTML = `
+      <div class="swatch" style="background:${
+        s.hex
+      }" title="Click to copy" data-hex="${s.hex}"></div>
+      <div class="sample-info">
+        <span class="sample-hex" data-hex="${s.hex}">
+          ${s.hex}
+          <span class="copy-toast" id="${toastId}">copied!</span>
+        </span>
+        <span class="sample-meta">
+          <span>rgb(${s.r}, ${s.g}, ${s.b})</span>
+          <span>hsl(${s.h}°, ${s.s}%, ${s.l}%)</span>
+          <span>brightness: <strong>${bright}</strong>/255 — ${shadeName(
+            bright
+          )}</span>
+        </span>
+      </div>
+      <div class="brightness-bar-wrap" title="${bright}/255">
+        <div class="brightness-bar" style="width:${Math.round(
+          (bright / 255) * 100
+        )}%;background:${s.hex}"></div>
+      </div>
+      <button class="remove-btn" data-id="${
+        s.id
+      }" title="Remove" aria-label="Remove sample">×</button>
+    `;
+          samplesGrid.appendChild(row);
+
+          row.querySelector('.sample-hex').addEventListener('click', () => {
+            copyToClipboard(s.hex, document.getElementById(toastId));
+          });
+          row.querySelector('.swatch').addEventListener('click', () => {
+            copyToClipboard(s.hex, document.getElementById(toastId));
+          });
+          row.querySelector('.remove-btn').addEventListener('click', () => {
+            const id = parseInt(row.querySelector('.remove-btn').dataset.id);
+            samples = samples.filter((x) => x.id !== id);
+            const pin = document.querySelector(`.pin-dot[data-id="${id}"]`);
+            if (pin) pin.remove();
+            renderSamples();
+          });
+        });
+      }
+
+      btnAuto.addEventListener('click', () => {
+        if (!imageLoaded) return;
+        if (cameraMode && !frozen)
+          ctx.drawImage(videoEl, 0, 0, mainCanvas.width, mainCanvas.height);
+
+        const idata = ctx.getImageData(
+          0,
+          0,
+          mainCanvas.width,
+          mainCanvas.height
+        ).data;
+        const buckets = [[], [], [], [], []];
+        const boundaries = [0, 51, 102, 153, 204, 256];
+
+        for (let i = 0; i < idata.length; i += 4) {
+          const r = idata[i],
+            g = idata[i + 1],
+            b = idata[i + 2],
+            a = idata[i + 3];
+          if (a < 200) continue;
+          const br = perceivedBrightness(r, g, b);
+          for (let bi = 0; bi < 5; bi++) {
+            if (br >= boundaries[bi] && br < boundaries[bi + 1]) {
+              buckets[bi].push([r, g, b, br]);
+              break;
+            }
+          }
+        }
+
+        const labels = ['very dark', 'dark', 'midtone', 'light', 'very light'];
+        autoPalette.innerHTML = '';
+        let any = false;
+
+        buckets.forEach((bucket, bi) => {
+          if (bucket.length === 0) return;
+          const sampleCount = Math.min(bucket.length, 300);
+          const step = Math.max(1, Math.floor(bucket.length / sampleCount));
+          let rSum = 0,
+            gSum = 0,
+            bSum = 0,
+            brSum = 0,
+            cnt = 0;
+          for (let i = 0; i < bucket.length; i += step) {
+            rSum += bucket[i][0];
+            gSum += bucket[i][1];
+            bSum += bucket[i][2];
+            brSum += bucket[i][3];
+            cnt++;
+          }
+          const r = Math.round(rSum / cnt),
+            g = Math.round(gSum / cnt),
+            b = Math.round(bSum / cnt);
+          const hex = rgbToHex(r, g, b);
+          const br = Math.round(brSum / cnt);
+
+          const item = document.createElement('div');
+          item.className = 'auto-swatch';
+          item.title = 'Click to copy ' + hex;
+          item.innerHTML = `
+      <div class="block" style="background:${hex}"></div>
+      <div class="lbl">${hex}<br>${br}/255<br><span style="font-size:9px;color:#bbb">${labels[bi]}</span></div>
+    `;
+          item.addEventListener('click', () => copyToClipboard(hex));
+          autoPalette.appendChild(item);
+          any = true;
+        });
+
+        autoSection.style.display = any ? 'block' : 'none';
+      });
+
+      btnClear.addEventListener('click', () => {
+        samples = [];
+        clearPins();
+        renderSamples();
+        autoSection.style.display = 'none';
+      });
+    </script>
+  </body>
+</html>
